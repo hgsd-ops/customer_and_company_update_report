@@ -23,6 +23,7 @@ import calendar
 MONDAY_API_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjQ3MDA3NDM5MywiYWFpIjoxMSwidWlkIjoyNTQ3ODk2NiwiaWFkIjoiMjAyNS0wMi0xMFQwOTowMToxMi4wMDBaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6MjQ2NTk0NSwicmduIjoidXNlMSJ9.bVWyZPs_iK2IFftxN6qaMIxJIZCR87EPDM8NGesluRI"
 MONDAY_TEAM_URL = "https://abyssworkshop.monday.com"
 COMPANIES_BOARD_ID = 3401154685
+COMPETITORS_BOARD_ID = 18362600897
 MONDAY_API_URL = "https://api.monday.com/v2"
 
 DEFAULT_AVATAR = "https://cdn-icons-png.flaticon.com/512/149/149071.png"
@@ -48,7 +49,6 @@ KEYWORD_GROUPS = {
 }
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PREVIEW_HTML = SCRIPT_DIR / "company_updates_preview.html"
 
 HEADERS = {
     "Authorization": MONDAY_API_KEY,
@@ -68,16 +68,32 @@ MONTH_START_UTC = NOW_UTC - timedelta(days=31)
 START_DATE_STR = MONTH_START_UTC.strftime("%b %d")
 END_DATE_STR = MONTH_END_UTC.strftime("%b %d, %Y")
 
-HEADING_TEXT = f"Company updates – {START_DATE_STR} to {END_DATE_STR}"
-PDF_FILENAME = f"Company updates – {START_DATE_STR} to {END_DATE_STR}.pdf"
+# Board configurations
+BOARDS = [
+    {
+        "id": COMPANIES_BOARD_ID,
+        "name": "Companies",
+        "heading": f"Company updates – {START_DATE_STR} to {END_DATE_STR}",
+        "pdf_filename": f"Company updates – {START_DATE_STR} to {END_DATE_STR}.pdf",
+        "preview_html": SCRIPT_DIR / "company_updates_preview.html",
+    },
+    {
+        "id": COMPETITORS_BOARD_ID,
+        "name": "Competitors",
+        "heading": f"Competitor updates – {START_DATE_STR} to {END_DATE_STR}",
+        "pdf_filename": f"Competitor updates – {START_DATE_STR} to {END_DATE_STR}.pdf",
+        "preview_html": SCRIPT_DIR / "competitor_updates_preview.html",
+    },
+]
 
 # ------------------------------------------------------
 # GRAPHQL QUERY
 # ------------------------------------------------------
 
-QUERY_COMPANY_UPDATES = f"""
+def get_query_for_board(board_id):
+    return f"""
 {{
-  boards(ids: {COMPANIES_BOARD_ID}) {{
+  boards(ids: {board_id}) {{
     items_page(limit: 500) {{
       items {{
         id
@@ -209,10 +225,11 @@ def highlight_keywords(text: str) -> str:
 # FETCH UPDATES
 # ------------------------------------------------------
 
-def fetch_company_updates():
+def fetch_board_updates(board_id):
+    query = get_query_for_board(board_id)
     r = requests.post(
         MONDAY_API_URL,
-        json={"query": QUERY_COMPANY_UPDATES},
+        json={"query": query},
         headers=HEADERS,
         timeout=30
     ).json()
@@ -221,7 +238,7 @@ def fetch_company_updates():
     updates = []
 
     for item in items:
-        company_url = f"{MONDAY_TEAM_URL}/boards/{COMPANIES_BOARD_ID}/pulses/{item['id']}"
+        item_url = f"{MONDAY_TEAM_URL}/boards/{board_id}/pulses/{item['id']}"
 
         for u in item.get("updates", []):
             try:
@@ -238,8 +255,8 @@ def fetch_company_updates():
 
             updates.append({
                 "company": item["name"],
-                "company_url": company_url,
-                "update_url": f"{company_url}?update_id={u['id']}",
+                "company_url": item_url,
+                "update_url": f"{item_url}?update_id={u['id']}",
                 "text": u.get("body", ""),
                 "created": created,
                 "user": creator.get("name", "Unknown"),
@@ -281,14 +298,14 @@ def render_user_heatmap(updates):
 # HTML BUILDER
 # ------------------------------------------------------
 
-def build_html(updates):
+def build_html(updates, heading_text):
     heatmap_html = render_user_heatmap(updates)
 
     html = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>{HEADING_TEXT}</title>
+<title>{heading_text}</title>
 
 <style>
 @page {{
@@ -357,7 +374,7 @@ a {{
 
 <body>
 
-<h1>{HEADING_TEXT}</h1>
+<h1>{heading_text}</h1>
 
 <div class="lead">
   <b>User activity</b>
@@ -452,16 +469,22 @@ def html_to_pdf(html: str, output_path: Path):
 # ------------------------------------------------------
 
 def main():
-    updates = fetch_company_updates()
+    for board in BOARDS:
+        print(f"\nProcessing {board['name']} board...")
+        
+        updates = fetch_board_updates(board["id"])
+        print(f"Found {len(updates)} updates")
 
-    html = build_html(updates)
-    PREVIEW_HTML.write_text(html, encoding="utf-8")
-    webbrowser.open(PREVIEW_HTML.as_uri())
+        html = build_html(updates, board["heading"])
+        board["preview_html"].write_text(html, encoding="utf-8")
+        
+        pdf_path = SCRIPT_DIR / board["pdf_filename"]
+        html_to_pdf(html, pdf_path)
 
-    pdf_path = SCRIPT_DIR / PDF_FILENAME
-    html_to_pdf(html, pdf_path)
-
-    print(f"Monthly PDF generated: {pdf_path}")
+        print(f"PDF generated: {pdf_path}")
+    
+    # Open the company preview in browser
+    webbrowser.open(BOARDS[0]["preview_html"].as_uri())
 
 if __name__ == "__main__":
     main()
