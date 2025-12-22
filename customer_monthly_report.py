@@ -56,26 +56,20 @@ HEADERS = {
 }
 
 # ------------------------------------------------------
-# MONTH WINDOW (previous calendar month)
+# MONTH WINDOW (last 31 days)
 # ------------------------------------------------------
 
 NOW_UTC = datetime.now(timezone.utc)
 
-if NOW_UTC.month == 1:
-    YEAR = NOW_UTC.year - 1
-    MONTH = 12
-else:
-    YEAR = NOW_UTC.year
-    MONTH = NOW_UTC.month - 1
+MONTH_END_UTC = NOW_UTC
+MONTH_START_UTC = NOW_UTC - timedelta(days=31)
 
-MONTH_NAME = calendar.month_name[MONTH]
+# Format dates for heading
+START_DATE_STR = MONTH_START_UTC.strftime("%b %d")
+END_DATE_STR = MONTH_END_UTC.strftime("%b %d, %Y")
 
-MONTH_START_UTC = datetime(YEAR, MONTH, 1, tzinfo=timezone.utc)
-LAST_DAY = calendar.monthrange(YEAR, MONTH)[1]
-MONTH_END_UTC = datetime(YEAR, MONTH, LAST_DAY, 23, 59, 59, tzinfo=timezone.utc)
-
-HEADING_TEXT = f"Company updates – {MONTH_NAME} {YEAR}"
-PDF_FILENAME = f"Company updates – {MONTH_NAME} {YEAR}.pdf"
+HEADING_TEXT = f"Company updates – {START_DATE_STR} to {END_DATE_STR}"
+PDF_FILENAME = f"Company updates – {START_DATE_STR} to {END_DATE_STR}.pdf"
 
 # ------------------------------------------------------
 # GRAPHQL QUERY
