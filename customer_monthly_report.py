@@ -167,6 +167,21 @@ def truncate_update_text(text: str, max_lines: int = 14) -> str:
 
     return "\n".join(output)
 
+def remove_urls_from_text(text: str) -> str:
+    """
+    Removes URLs even if they are split across multiple lines.
+    """
+    # First, join lines temporarily to catch wrapped URLs
+    joined = re.sub(r'\n+', ' ', text)
+
+    # Remove all URLs
+    joined = re.sub(r'https?://[^\s]+', '', joined)
+
+    # Restore line structure (best-effort)
+    cleaned = re.sub(r'\s{2,}', ' ', joined)
+
+    return cleaned.strip()
+
 # ------------------------------------------------------
 # LINKS
 # ------------------------------------------------------
@@ -394,9 +409,11 @@ a {{
             current_company = u["company"]
 
         cleaned = clean_update_text(u["text"])
-        truncated = truncate_update_text(cleaned)
-        highlighted = highlight_keywords(truncated)
         links = extract_links(cleaned)
+
+        cleaned_no_links = remove_urls_from_text(cleaned)
+        truncated = truncate_update_text(cleaned_no_links)
+        highlighted = highlight_keywords(truncated)
 
         links_html = ""
         if links:
